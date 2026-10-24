@@ -33,15 +33,46 @@ addEventListener('resize',rs);rs();
 S.add(new THREE.AmbientLight(0xffffff,.75));
 const L=new THREE.DirectionalLight(0xfff0cc,.9);L.position.set(-6,15,8);S.add(L);
 
-// ground
+// ground + ruined city: sirang aspalto, guho, gumuhong gusali
+S.background=new THREE.Color(0x3a3633);S.fog=new THREE.Fog(0x3a3633,50,90);
 const gc=document.createElement('canvas');gc.width=gc.height=256;const g=gc.getContext('2d');
-g.fillStyle='#4a5a2c';g.fillRect(0,0,256,256);
-for(let i=0;i<220;i++){const x=Math.random()*256,y=Math.random()*256,r=3+Math.random()*12;
- g.fillStyle=`hsla(${70+Math.random()*30},35%,${22+Math.random()*16}%,.5)`;
- for(const a of[-256,0,256])for(const b of[-256,0,256]){g.beginPath();g.arc(x+a,y+b,r,0,7);g.fill()}}
+const wrap=f=>{for(const a of[-256,0,256])for(const c of[-256,0,256])f(a,c)};
+g.fillStyle='#4a4743';g.fillRect(0,0,256,256);
+for(let i=0;i<160;i++){const x=Math.random()*256,y=Math.random()*256,r=3+Math.random()*14;
+ g.fillStyle=`hsla(${20+Math.random()*20},8%,${22+Math.random()*18}%,.55)`;wrap((a,c)=>{g.beginPath();g.arc(x+a,y+c,r,0,7);g.fill()})}
+for(let i=0;i<5;i++){const x=Math.random()*256,y=Math.random()*256,r=14+Math.random()*20;
+ g.fillStyle='rgba(10,8,6,.4)';wrap((a,c)=>{g.beginPath();g.arc(x+a,y+c,r,0,7);g.fill()})}
+g.fillStyle='rgba(200,170,60,.4)';for(let y=0;y<256;y+=64)g.fillRect(126,y+8,4,34);
+g.strokeStyle='rgba(8,8,8,.7)';g.lineWidth=1.5;
+for(let i=0;i<14;i++){let x=Math.random()*256,y=Math.random()*256;g.beginPath();g.moveTo(x,y);
+ for(let k=0;k<6;k++){x+=Math.random()*40-20;y+=Math.random()*40-20;g.lineTo(x,y)}g.stroke()}
 const gt=new THREE.CanvasTexture(gc);gt.wrapS=gt.wrapT=THREE.RepeatWrapping;gt.repeat.set(6,12);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(60,120),new THREE.MeshLambertMaterial({map:gt}));
 ground.rotation.x=-Math.PI/2;ground.position.z=-20;S.add(ground);
+const wc=document.createElement('canvas');wc.width=wc.height=128;const wx=wc.getContext('2d');
+wx.fillStyle='#8c8780';wx.fillRect(0,0,128,128);
+for(let y=0;y<4;y++)for(let x=0;x<4;x++){wx.fillStyle=Math.random()<.25?'#2a2a2a':'#14181c';wx.fillRect(8+x*30,8+y*30,20,20);
+ if(Math.random()<.4){wx.fillStyle='#8c8780';wx.fillRect(8+x*30,8+y*30,20,6+Math.random()*10)}}
+wx.strokeStyle='rgba(0,0,0,.55)';for(let i=0;i<4;i++){let x=Math.random()*128,y=0;wx.beginPath();wx.moveTo(x,y);for(let k=0;k<5;k++){x+=Math.random()*24-12;y+=26;wx.lineTo(x,y)}wx.stroke()}
+const wt=new THREE.CanvasTexture(wc);
+const city=[],SPAN=91,bms=[0x8a8580,0x6f6c68,0x9b9186].map(c=>new THREE.MeshLambertMaterial({color:c,map:wt,flatShading:true}));
+const dkm=new THREE.MeshLambertMaterial({color:0x2c2a28,flatShading:true}),rbm=new THREE.MeshLambertMaterial({color:0x5a5651,flatShading:true});
+function building(side){
+ const gr=new THREE.Group(),w=3+Math.random()*2.5,d=5+Math.random()*3,h=4+Math.random()*7,m=bms[Math.random()*3|0];
+ const bd=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);bd.position.y=h/2;gr.add(bd);
+ for(let i=0;i<3;i++){const ch=.8+Math.random()*1.6,c=new THREE.Mesh(new THREE.BoxGeometry(w*(.3+Math.random()*.3),ch,d*(.3+Math.random()*.4)),m);
+  c.position.set((Math.random()-.5)*w*.6,h+ch/2-.2,(Math.random()-.5)*d*.6);c.rotation.set((Math.random()-.5)*.5,Math.random(),(Math.random()-.5)*.5);gr.add(c)}
+ for(let i=0;i<10;i++){const s=.3+Math.random()*.8,r=new THREE.Mesh(new THREE.BoxGeometry(s,s*.7,s),i%3?rbm:dkm);
+  r.position.set(-side*(w/2+Math.random()*2.2),s*.3,(Math.random()-.5)*d*1.3);r.rotation.set(Math.random(),Math.random(),Math.random());gr.add(r)}
+ for(let i=0;i<4;i++){const rb=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.2,5),dkm);
+  rb.position.set((Math.random()-.5)*w,h+.9,(Math.random()-.5)*d);rb.rotation.z=(Math.random()-.5)*.6;gr.add(rb)}
+ gr.position.x=side*(9.5+w/2+Math.random()*1.5);return gr}
+for(let i=0;i<7;i++)[-1,1].forEach(s=>{const b=building(s);b.position.z=-70+i*13+Math.random()*3;S.add(b);city.push(b)});
+for(let i=0;i<22;i++){const gr=new THREE.Group(),car=i%5===0;
+ if(car){const a=new THREE.Mesh(new THREE.BoxGeometry(1.4,.5,2.6),dkm);a.position.y=.4;const t=new THREE.Mesh(new THREE.BoxGeometry(1.2,.4,1.3),rbm);t.position.set(0,.85,.1);gr.add(a,t)}
+ else{const s=.5+Math.random()*1.1,a=new THREE.Mesh(new THREE.BoxGeometry(s,s*.5,s*(.6+Math.random())),i%2?rbm:dkm);a.position.y=s*.2;a.rotation.y=Math.random()*3;gr.add(a)}
+ gr.position.set((Math.random()-.5)*16,0,-70+Math.random()*90);gr.rotation.y=Math.random()*6;S.add(gr);city.push(gr)}
+function scrollCity(dz){for(const o of city){o.position.z+=dz;if(o.position.z>20)o.position.z-=SPAN}}
 
 // tank model (IS-3 style: rounded turret, long gun, side skirts, fuel tank, star + number)
 const M=c=>new THREE.MeshLambertMaterial({color:c});
@@ -164,7 +195,7 @@ function update(dt){
  p.x=clamp(p.x+kx*9*dt,-7,7);p.z=clamp(p.z+kz*9*dt,-4,9);
  if(kl>.1){let d=Math.atan2(-kx,-kz)-P.hull.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));P.hull.rotation.y+=d*Math.min(1,10*dt)}
  P.tur.rotation.y=aim;
- gt.offset.y+=(5+stage*.3)*dt/10;
+ {const sp=(5+stage*.3)*dt;gt.offset.y+=sp/10;scrollCity(sp)}
  inv=Math.max(0,inv-dt);P.root.visible=!inv||Math.floor(tt*12)%2==0;
  if((fT-=dt)<=0&&(firing||keys[' '])){fT=Math.max(.14,.3-stage*.015);if(stage>=4){fire(-.4);fire(.4)}else fire(0)}
  if(spawned<total&&(sT-=dt)<=0){sT=Math.max(.6,2.1-stage*.14);spawn(stage===10&&spawned===total-1);spawned++}
