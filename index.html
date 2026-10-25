@@ -72,6 +72,7 @@ for(let i=0;i<22;i++){const gr=new THREE.Group(),car=i%5===0;
  if(car){const a=new THREE.Mesh(new THREE.BoxGeometry(1.4,.5,2.6),dkm);a.position.y=.4;const t=new THREE.Mesh(new THREE.BoxGeometry(1.2,.4,1.3),rbm);t.position.set(0,.85,.1);gr.add(a,t)}
  else{const s=.5+Math.random()*1.1,a=new THREE.Mesh(new THREE.BoxGeometry(s,s*.5,s*(.6+Math.random())),i%2?rbm:dkm);a.position.y=s*.2;a.rotation.y=Math.random()*3;gr.add(a)}
  gr.position.set((Math.random()-.5)*16,0,-70+Math.random()*90);gr.rotation.y=Math.random()*6;S.add(gr);city.push(gr)}
+function scroll(sp){gt.offset.y+=sp/10;scrollCity(sp)}
 function scrollCity(dz){for(const o of city){o.position.z+=dz;if(o.position.z>20)o.position.z-=SPAN}}
 
 // tank model (IS-3 style: rounded turret, long gun, side skirts, fuel tank, star + number)
@@ -140,10 +141,10 @@ function rhino(k){
  root.add(hull,tur);root.scale.setScalar(k);return{root,hull,tur}}
 
 // state
-const P=rhino(.8);S.add(P.root);
-const pg=new THREE.SphereGeometry(.22,8,6),pm=new THREE.MeshBasicMaterial({color:0xffe066}),em=new THREE.MeshBasicMaterial({color:0xff4a3a});
+const P=rhino(.5);S.add(P.root);
+const pg=new THREE.SphereGeometry(.15,8,6),pm=new THREE.MeshBasicMaterial({color:0xffe066}),em=new THREE.MeshBasicMaterial({color:0xff4a3a});
 const fg=new THREE.BoxGeometry(.3,.3,.3),fm=new THREE.MeshBasicMaterial({color:0xff9a2e});
-let stage=1,hp=5,score=0,run=false,en=[],pb=[],eb=[],fx=[],spawned=0,total=0,sT=0,fT=0,inv=0,tt=0;
+let adv=0,stage=1,hp=5,score=0,run=false,en=[],pb=[],eb=[],fx=[],spawned=0,total=0,sT=0,fT=0,inv=0,tt=0;
 const keys={};
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -156,14 +157,14 @@ function newGame(){stage=1;hp=5;score=0;begin()}
 function explode(p,n){for(let i=0;i<n;i++){const m=new THREE.Mesh(fg,fm);m.position.set(p.x,1,p.z);S.add(m);
  fx.push({m,vx:(Math.random()-.5)*8,vy:Math.random()*5,vz:(Math.random()-.5)*8,t:.6})}}
 function spawn(boss){
- const t=tank(boss?0x7a2e24:[0x8a7a52,0x7a5a3a,0x5a6470][Math.random()*3|0],boss?'X':String(100+Math.random()*899|0),boss?1.9:.8);
+ const t=tank(boss?0x7a2e24:[0x8a7a52,0x7a5a3a,0x5a6470][Math.random()*3|0],boss?'X':String(100+Math.random()*899|0),boss?1.3:.55);
  t.hull.rotation.y=Math.PI;t.root.position.set((Math.random()-.5)*12,0,-26);S.add(t.root);
- Object.assign(t,{hp:boss?36+stage*2:1+(stage/3|0),r:boss?2.6:1.4,sp:boss?3:2.2+stage*.3,hz:boss?-12:-15+Math.random()*9,
+ Object.assign(t,{hp:boss?36+stage*2:1+(stage/3|0),r:boss?1.8:.9,sp:boss?3:2.2+stage*.3,hz:boss?-12:-15+Math.random()*9,
   ph:Math.random()*6,cd:1+Math.random()*2,boss});en.push(t)}
 function shoot(x,z,vx,vz){const m=new THREE.Mesh(pg,em);m.position.set(x,.9,z);S.add(m);const s=9+stage*.5;eb.push({m,vx:vx*s,vz:vz*s})}
 let aim=0;
 function fire(o){const p=P.root.position,sx=-Math.sin(aim),sz=-Math.cos(aim),m=new THREE.Mesh(pg,pm);
- m.position.set(p.x+sx*3.3+Math.cos(aim)*o,.9,p.z+sz*3.3-Math.sin(aim)*o);S.add(m);pb.push({m,vx:sx*26,vz:sz*26})}
+ m.position.set(p.x+sx*2.1+Math.cos(aim)*o,.9,p.z+sz*2.1-Math.sin(aim)*o);S.add(m);pb.push({m,vx:sx*26,vz:sz*26})}
 
 // input: kaliwa = galaw, kanan = itutok at paputukin ang kanyon
 const mv={x:0,z:0},ptr={};let firing=false;
@@ -195,7 +196,6 @@ function update(dt){
  p.x=clamp(p.x+kx*9*dt,-7,7);p.z=clamp(p.z+kz*9*dt,-4,9);
  if(kl>.1){let d=Math.atan2(-kx,-kz)-P.hull.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));P.hull.rotation.y+=d*Math.min(1,10*dt)}
  P.tur.rotation.y=aim;
- {const sp=(5+stage*.3)*dt;gt.offset.y+=sp/10;scrollCity(sp)}
  inv=Math.max(0,inv-dt);P.root.visible=!inv||Math.floor(tt*12)%2==0;
  if((fT-=dt)<=0&&(firing||keys[' '])){fT=Math.max(.14,.3-stage*.015);if(stage>=4){fire(-.4);fire(.4)}else fire(0)}
  if(spawned<total&&(sT-=dt)<=0){sT=Math.max(.6,2.1-stage*.14);spawn(stage===10&&spawned===total-1);spawned++}
@@ -203,7 +203,7 @@ function update(dt){
   if(q.z<e.hz)q.z+=e.sp*dt;else{e.ph+=dt;q.x=clamp(q.x+Math.sin(e.ph*(e.boss?.7:1.1))*dt*(e.boss?3:2.2),-7,7)}
   const dx=p.x-q.x,dz=p.z-q.z,l=Math.hypot(dx,dz)||1;e.tur.rotation.y=Math.atan2(-dx,-dz);
   if(q.z>-16&&(e.cd-=dt)<=0){e.cd=Math.max(1.1,3.2-stage*.2)*(e.boss?.5:1)*(.8+Math.random()*.4);
-   const sx=q.x+dx/l*3,sz=q.z+dz/l*3;shoot(sx,sz,dx/l,dz/l);
+   const mo=e.boss?3.5:2.1,sx=q.x+dx/l*mo,sz=q.z+dz/l*mo;shoot(sx,sz,dx/l,dz/l);
    if(e.boss)[-.3,.3].forEach(a=>{const c=Math.cos(a),s=Math.sin(a);shoot(sx,sz,(dx*c-dz*s)/l,(dx*s+dz*c)/l)})}});
  for(let i=pb.length-1;i>=0;i--){const b=pb[i];b.m.position.x+=b.vx*dt;b.m.position.z+=b.vz*dt;let dead=b.m.position.z<-30||b.m.position.z>16||Math.abs(b.m.position.x)>12;
   for(let j=0;j<en.length&&!dead;j++){const e=en[j];
@@ -211,7 +211,7 @@ function update(dt){
     if(--e.hp<=0){explode(e.root.position,e.boss?30:10);S.remove(e.root);en.splice(j,1);score+=e.boss?1000:100}}}
   if(dead){S.remove(b.m);pb.splice(i,1)}}
  for(let i=eb.length-1;i>=0;i--){const b=eb[i],q=b.m.position;q.x+=b.vx*dt;q.z+=b.vz*dt;let dead=Math.abs(q.x)>12||q.z>16||q.z<-30;
-  if(!dead&&!inv&&Math.hypot(q.x-p.x,q.z-p.z)<1.1){dead=true;inv=1.2;hp--;explode(p,6);
+  if(!dead&&!inv&&Math.hypot(q.x-p.x,q.z-p.z)<.7){dead=true;inv=1.2;hp--;explode(p,6);
    if(hp<=0){run=false;show('TALO KA',`Umabot ka sa stage ${stage}. Score: ${score}`,'Ulitin',newGame)}}
   if(dead){S.remove(b.m);eb.splice(i,1)}}
  for(let i=fx.length-1;i>=0;i--){const f=fx[i];f.t-=dt;f.vy-=14*dt;
@@ -219,11 +219,14 @@ function update(dt){
   if(f.t<=0){S.remove(f.m);fx.splice(i,1)}}
  if(run&&spawned>=total&&!en.length){run=false;
   if(stage===10)show('PANALO!',`Natapos mo ang 10 stage. Score: ${score}`,'Maglaro ulit',newGame);
-  else{hp=Math.min(5,hp+1);show(`STAGE ${stage} TAPOS`,'Dagdag 1 buhay. Mas matindi ang susunod.','Susunod',()=>{stage++;begin()})}}
+  else{hp=Math.min(5,hp+1);show(`STAGE ${stage} TAPOS`,'Dagdag 1 buhay. Mas matindi ang susunod.','Susunod',()=>{clear(pb);clear(eb);adv=2.6})}}
 }
 let last=0;
 function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000||0);last=t;
  if(run)update(dt);
+ else if(adv>0){adv-=dt;scroll(16*dt);const p=P.root.position,k=Math.min(1,3*dt);
+  p.x-=p.x*k;p.z+=(7-p.z)*k;P.hull.rotation.y*=1-k;aim*=1-k;P.tur.rotation.y=aim;P.root.visible=true;
+  if(adv<=0){stage++;begin()}}
  $('h1').textContent='Stage '+stage+'/10';$('h2').textContent='♥'.repeat(Math.max(0,hp));$('h3').textContent=score;
  R.render(S,cam)}
 show('TANGKE','Kaliwang daliri: galaw ng tangke. Kanang daliri: itutok at paputukin ang kanyon. 10 stage, may boss sa dulo.','Simulan',newGame);
