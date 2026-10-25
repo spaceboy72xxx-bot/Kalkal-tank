@@ -15,8 +15,10 @@ canvas{display:block;width:100%;height:100%}
 #msg h1{font-size:44px;margin:0;font-weight:400;color:var(--amber)}
 #msg p{margin:0;font:16px/1.5 system-ui,sans-serif;max-width:300px}
 .st{position:fixed;box-sizing:border-box;width:100px;height:100px;margin:-50px 0 0 -50px;border:2px solid rgba(232,230,200,.35);border-radius:50%;display:none;pointer-events:none}.st i{position:absolute;left:33px;top:33px;width:30px;height:30px;border-radius:50%;background:rgba(242,177,52,.7)}.st.a{border-color:rgba(255,90,70,.5)}
+#pwh{position:fixed;left:14px;top:calc(env(safe-area-inset-top,0px) + 44px);font:18px system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 3px #000;letter-spacing:2px;z-index:1}
 button{font:inherit;font-size:20px;background:var(--amber);color:var(--bg);border:0;border-radius:6px;padding:12px 30px}
 </style></head><body>
+<div id="pwh"></div>
 <div id="hud"><span id="h1"></span><span id="h2"></span><span id="h3"></span></div>
 <div id="msg"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -24,11 +26,11 @@ button{font:inherit;font-size:20px;background:var(--amber);color:var(--bg);borde
 const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
 document.body.prepend(R.domElement);
 const S=new THREE.Scene();S.background=new THREE.Color(0x1b1f12);
-const cam=new THREE.PerspectiveCamera(50,1,1,200);let VW=17;
+const cam=new THREE.PerspectiveCamera(50,1,1,200);let VW=17,WX=8,WZ0=-20,WZ1=12;
 function rs(){R.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;
  const hf=2*Math.atan(Math.tan(25*Math.PI/180)*cam.aspect);
- const d=Math.max(26,9/Math.tan(Math.min(hf,2)/2));VW=2*d*Math.tan(hf/2);
- cam.position.set(0,.86*d,-1+.5*d);cam.lookAt(0,0,-1);cam.updateProjectionMatrix()}
+ const d=Math.max(26,9/Math.tan(Math.min(hf,2)/2));VW=2*d*Math.tan(hf/2);WX=VW/2*.95;WZ0=-1-d*Math.tan(25*Math.PI/180)*.95;WZ1=-1+d*Math.tan(25*Math.PI/180)*.95;
+ cam.position.set(0,.993*d,-1+.12*d);cam.lookAt(0,0,-1);cam.updateProjectionMatrix()}
 addEventListener('resize',rs);rs();
 S.add(new THREE.AmbientLight(0xffffff,.75));
 const L=new THREE.DirectionalLight(0xfff0cc,.9);L.position.set(-6,15,8);S.add(L);
@@ -148,23 +150,48 @@ let adv=0,stage=1,hp=5,score=0,run=false,en=[],pb=[],eb=[],fx=[],spawned=0,total
 const keys={};
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// ===== power-ups =====
+const PW={bounce:['🔁','#2f9bff'],multi:['✴','#ff8a2f'],rapid:['⚡','#ffd23f'],pierce:['🗡','#3fe0e0'],shield:['🛡','#9a7bff'],heal:['❤','#ff4a6a'],bomb:['💣','#7d8389'],speed:['💨','#5be08a'],homing:['🎯','#ff5f5f']};
+const TY=Object.keys(PW),pwTex={},pw={bounce:0,multi:0,rapid:0,pierce:0,shield:0,speed:0,homing:0},pu=[];let ml=0,lastps='';
+const pmC=new THREE.MeshBasicMaterial({color:0x66ffff}),pmG=new THREE.MeshBasicMaterial({color:0x66ff66});
+const sh=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,10),new THREE.MeshBasicMaterial({color:0x9a7bff,transparent:true,opacity:.28}));
+sh.position.y=.5;sh.visible=false;S.add(sh);
+function pwT(t){if(pwTex[t])return pwTex[t];const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+ x.fillStyle=PW[t][1];x.beginPath();x.arc(64,64,60,0,7);x.fill();x.strokeStyle='#fff';x.lineWidth=6;x.stroke();
+ x.fillStyle='#fff';x.font='64px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(PW[t][0],64,70);return pwTex[t]=new THREE.CanvasTexture(c)}
+function drop(x,z){let t=TY[Math.random()*TY.length|0];if(t==='heal'&&hp>=5)t='multi';
+ const m=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),new THREE.MeshBasicMaterial({map:pwT(t),transparent:true}));
+ m.rotation.x=-Math.PI/2;m.position.set(clamp(x,-WX+1,WX-1),.35,Math.max(z,WZ0+8));S.add(m);pu.push({m,t,life:12})}
+function kill(j){const e=en[j],q=e.root.position;explode(q,e.boss?30:10);S.remove(e.root);en.splice(j,1);score+=e.boss?1000:100;
+ if(e.boss){for(let i=0;i<3;i++)drop(q.x+(i-1)*1.8,q.z)}else if(Math.random()<.25)drop(q.x,q.z)}
+function apply(t){
+ if(t==='heal')hp=Math.min(5,hp+1);
+ else if(t==='bomb'){en.forEach(e=>{e.hp-=e.boss?10:99;explode(e.root.position,6)});for(let j=en.length-1;j>=0;j--)if(en[j].hp<=0)kill(j)}
+ else if(t==='multi'){ml=Math.min(3,ml+1);pw.multi=15}
+ else pw[t]=12}
+function tick(dt){for(const k in pw)pw[k]=Math.max(0,pw[k]-dt);if(!pw.multi)ml=0;
+ const p=P.root.position;sh.visible=pw.shield>0;sh.position.set(p.x,.5,p.z);
+ for(let i=pu.length-1;i>=0;i--){const u=pu[i],m=u.m;u.life-=dt;m.rotation.z+=dt*2;m.scale.setScalar(1+.12*Math.sin(tt*7));m.visible=u.life>3||Math.floor(tt*8)%2==0;
+  if(Math.hypot(m.position.x-p.x,m.position.z-p.z)<1.3){apply(u.t);S.remove(m);pu.splice(i,1)}else if(u.life<=0){S.remove(m);pu.splice(i,1)}}}
 function show(h,p,b,fn){const m=$('msg');m.style.display='flex';m.innerHTML=`<h1>${h}</h1><p>${p}</p><button>${b}</button>`;
  m.querySelector('button').onclick=()=>{m.style.display='none';fn()}}
 function clear(a){a.forEach(o=>S.remove(o.root||o.m));a.length=0}
-function begin(){clear(en);clear(pb);clear(eb);clear(fx);
- P.root.position.set(0,0,7);aim=0;P.hull.rotation.y=0;mv.x=mv.z=0;spawned=0;total=stage===10?13:4+stage*2;sT=1;run=true}
-function newGame(){stage=1;hp=5;score=0;begin()}
+function begin(){clear(en);clear(pb);clear(eb);clear(fx);clear(pu);
+ P.root.position.set(0,0,WZ1-7);aim=0;P.hull.rotation.y=0;mv.x=mv.z=0;spawned=0;total=stage===10?13:4+stage*2;sT=1;run=true}
+function newGame(){stage=1;hp=5;score=0;for(const k in pw)pw[k]=0;ml=0;begin()}
 function explode(p,n){for(let i=0;i<n;i++){const m=new THREE.Mesh(fg,fm);m.position.set(p.x,1,p.z);S.add(m);
  fx.push({m,vx:(Math.random()-.5)*8,vy:Math.random()*5,vz:(Math.random()-.5)*8,t:.6})}}
 function spawn(boss){
  const t=tank(boss?0x7a2e24:[0x8a7a52,0x7a5a3a,0x5a6470][Math.random()*3|0],boss?'X':String(100+Math.random()*899|0),boss?1.3:.55);
  t.hull.rotation.y=Math.PI;t.root.position.set((Math.random()-.5)*12,0,-26);S.add(t.root);
- Object.assign(t,{hp:boss?36+stage*2:1+(stage/3|0),r:boss?1.8:.9,sp:boss?3:2.2+stage*.3,hz:boss?-12:-15+Math.random()*9,
+ Object.assign(t,{hp:boss?36+stage*2:1+(stage/3|0),r:boss?1.8:.9,sp:boss?3:2.2+stage*.3,hz:Math.max(WZ0+3,boss?-12:-15+Math.random()*9),
   ph:Math.random()*6,cd:1+Math.random()*2,boss});en.push(t)}
 function shoot(x,z,vx,vz){const m=new THREE.Mesh(pg,em);m.position.set(x,.9,z);S.add(m);const s=9+stage*.5;eb.push({m,vx:vx*s,vz:vz*s})}
 let aim=0;
-function fire(o){const p=P.root.position,sx=-Math.sin(aim),sz=-Math.cos(aim),m=new THREE.Mesh(pg,pm);
- m.position.set(p.x+sx*2.1+Math.cos(aim)*o,.9,p.z+sz*2.1-Math.sin(aim)*o);S.add(m);pb.push({m,vx:sx*26,vz:sz*26})}
+function fire(o,a){const p=P.root.position,t=aim+a,m=new THREE.Mesh(pg,pw.pierce>0?pmC:pw.bounce>0?pmG:pm);
+ m.position.set(p.x-Math.sin(aim)*2.1+Math.cos(aim)*o,.9,p.z-Math.cos(aim)*2.1-Math.sin(aim)*o);S.add(m);
+ pb.push({m,vx:-Math.sin(t)*26,vz:-Math.cos(t)*26,bn:pw.bounce>0?3:0,pr:pw.pierce>0,hit:[]})}
+function volley(){const n=ml?1+2*ml:(stage>=4?2:1);for(let i=0;i<n;i++){const c=i-(n-1)/2;ml?fire(0,c*.2):fire(c*.8,0)}}
 
 // input: kaliwa = galaw, kanan = itutok at paputukin ang kanyon
 const mv={x:0,z:0},ptr={};let firing=false;
@@ -193,43 +220,49 @@ function update(dt){
  const p=P.root.position;tt+=dt;
  let kx=(keys.arrowright||keys.d?1:0)-(keys.arrowleft||keys.a?1:0)+mv.x,kz=(keys.arrowdown||keys.s?1:0)-(keys.arrowup||keys.w?1:0)+mv.z;
  const kl=Math.hypot(kx,kz);if(kl>1){kx/=kl;kz/=kl}
- p.x=clamp(p.x+kx*9*dt,-7,7);p.z=clamp(p.z+kz*9*dt,-4,9);
+ const ms=9*(pw.speed>0?1.6:1);p.x=clamp(p.x+kx*ms*dt,-WX+.5,WX-.5);p.z=clamp(p.z+kz*ms*dt,WZ0+8,WZ1-2);
  if(kl>.1){let d=Math.atan2(-kx,-kz)-P.hull.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));P.hull.rotation.y+=d*Math.min(1,10*dt)}
  P.tur.rotation.y=aim;
- inv=Math.max(0,inv-dt);P.root.visible=!inv||Math.floor(tt*12)%2==0;
- if((fT-=dt)<=0&&(firing||keys[' '])){fT=Math.max(.14,.3-stage*.015);if(stage>=4){fire(-.4);fire(.4)}else fire(0)}
+ inv=Math.max(0,inv-dt);tick(dt);P.root.visible=!inv||Math.floor(tt*12)%2==0;
+ if((fT-=dt)<=0&&(firing||keys[' '])){fT=Math.max(.14,.3-stage*.015)*(pw.rapid>0?.5:1);volley()}
  if(spawned<total&&(sT-=dt)<=0){sT=Math.max(.6,2.1-stage*.14);spawn(stage===10&&spawned===total-1);spawned++}
  en.forEach(e=>{const q=e.root.position;
   if(q.z<e.hz)q.z+=e.sp*dt;else{e.ph+=dt;q.x=clamp(q.x+Math.sin(e.ph*(e.boss?.7:1.1))*dt*(e.boss?3:2.2),-7,7)}
   const dx=p.x-q.x,dz=p.z-q.z,l=Math.hypot(dx,dz)||1;e.tur.rotation.y=Math.atan2(-dx,-dz);
-  if(q.z>-16&&(e.cd-=dt)<=0){e.cd=Math.max(1.1,3.2-stage*.2)*(e.boss?.5:1)*(.8+Math.random()*.4);
+  if(q.z>WZ0+2&&(e.cd-=dt)<=0){e.cd=Math.max(1.1,3.2-stage*.2)*(e.boss?.5:1)*(.8+Math.random()*.4);
    const mo=e.boss?3.5:2.1,sx=q.x+dx/l*mo,sz=q.z+dz/l*mo;shoot(sx,sz,dx/l,dz/l);
    if(e.boss)[-.3,.3].forEach(a=>{const c=Math.cos(a),s=Math.sin(a);shoot(sx,sz,(dx*c-dz*s)/l,(dx*s+dz*c)/l)})}});
- for(let i=pb.length-1;i>=0;i--){const b=pb[i];b.m.position.x+=b.vx*dt;b.m.position.z+=b.vz*dt;let dead=b.m.position.z<-30||b.m.position.z>16||Math.abs(b.m.position.x)>12;
-  for(let j=0;j<en.length&&!dead;j++){const e=en[j];
-   if(Math.hypot(b.m.position.x-e.root.position.x,b.m.position.z-e.root.position.z)<e.r){dead=true;
-    if(--e.hp<=0){explode(e.root.position,e.boss?30:10);S.remove(e.root);en.splice(j,1);score+=e.boss?1000:100}}}
+ for(let i=pb.length-1;i>=0;i--){const b=pb[i],q=b.m.position;
+  if(pw.homing>0&&en.length){let bd=1e9,t=null;for(const e of en){const d=Math.hypot(e.root.position.x-q.x,e.root.position.z-q.z);if(d<bd){bd=d;t=e}}
+   if(t&&bd<16){const sp=Math.hypot(b.vx,b.vz),ax=t.root.position.x-q.x,az=t.root.position.z-q.z,l=Math.hypot(ax,az)||1;
+    b.vx+=ax/l*70*dt;b.vz+=az/l*70*dt;const n=Math.hypot(b.vx,b.vz)||1;b.vx*=sp/n;b.vz*=sp/n}}
+  q.x+=b.vx*dt;q.z+=b.vz*dt;let dead=false;
+  if(b.bn>0){if(Math.abs(q.x)>WX){q.x=Math.sign(q.x)*WX;b.vx*=-1;b.bn--}if(q.z<WZ0){q.z=WZ0;b.vz*=-1;b.bn--}if(q.z>WZ1){q.z=WZ1;b.vz*=-1;b.bn--}}
+  else dead=q.z<WZ0-8||q.z>WZ1+3||Math.abs(q.x)>WX+4;
+  for(let j=en.length-1;j>=0;j--){const e=en[j];if(b.hit.includes(e))continue;
+   if(Math.hypot(q.x-e.root.position.x,q.z-e.root.position.z)<e.r){b.hit.push(e);if(!b.pr)dead=true;if(--e.hp<=0)kill(j);if(dead)break}}
   if(dead){S.remove(b.m);pb.splice(i,1)}}
- for(let i=eb.length-1;i>=0;i--){const b=eb[i],q=b.m.position;q.x+=b.vx*dt;q.z+=b.vz*dt;let dead=Math.abs(q.x)>12||q.z>16||q.z<-30;
-  if(!dead&&!inv&&Math.hypot(q.x-p.x,q.z-p.z)<.7){dead=true;inv=1.2;hp--;explode(p,6);
-   if(hp<=0){run=false;show('TALO KA',`Umabot ka sa stage ${stage}. Score: ${score}`,'Ulitin',newGame)}}
+  for(let i=eb.length-1;i>=0;i--){const b=eb[i],q=b.m.position;q.x+=b.vx*dt;q.z+=b.vz*dt;let dead=Math.abs(q.x)>WX+4||q.z>WZ1+3||q.z<WZ0-8;
+  if(!dead&&!inv&&Math.hypot(q.x-p.x,q.z-p.z)<.7){dead=true;if(pw.shield>0)explode(p,3);else{inv=1.2;hp--;explode(p,6);
+   if(hp<=0){run=false;show('TALO KA',`Umabot ka sa stage ${stage}. Score: ${score}`,'Ulitin',newGame)}}}
   if(dead){S.remove(b.m);eb.splice(i,1)}}
  for(let i=fx.length-1;i>=0;i--){const f=fx[i];f.t-=dt;f.vy-=14*dt;
   f.m.position.x+=f.vx*dt;f.m.position.y=Math.max(.2,f.m.position.y+f.vy*dt);f.m.position.z+=f.vz*dt;f.m.scale.setScalar(Math.max(.01,f.t/.6));
   if(f.t<=0){S.remove(f.m);fx.splice(i,1)}}
  if(run&&spawned>=total&&!en.length){run=false;
   if(stage===10)show('PANALO!',`Natapos mo ang 10 stage. Score: ${score}`,'Maglaro ulit',newGame);
-  else{hp=Math.min(5,hp+1);show(`STAGE ${stage} TAPOS`,'Dagdag 1 buhay. Mas matindi ang susunod.','Susunod',()=>{clear(pb);clear(eb);adv=2.6})}}
+  else{hp=Math.min(5,hp+1);show(`STAGE ${stage} TAPOS`,'Dagdag 1 buhay. Mas matindi ang susunod.','Susunod',()=>{clear(pb);clear(eb);clear(pu);sh.visible=false;adv=2.6})}}
 }
 let last=0;
 function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000||0);last=t;
  if(run)update(dt);
  else if(adv>0){adv-=dt;scroll(16*dt);const p=P.root.position,k=Math.min(1,3*dt);
-  p.x-=p.x*k;p.z+=(7-p.z)*k;P.hull.rotation.y*=1-k;aim*=1-k;P.tur.rotation.y=aim;P.root.visible=true;
+  p.x-=p.x*k;p.z+=(WZ1-7-p.z)*k;P.hull.rotation.y*=1-k;aim*=1-k;P.tur.rotation.y=aim;P.root.visible=true;
   if(adv<=0){stage++;begin()}}
+ const ps=Object.keys(pw).filter(k=>pw[k]>0).map(k=>PW[k][0]+Math.ceil(pw[k])+(k==='multi'?'x'+(1+2*ml):'')).join('  ');if(ps!==lastps){$('pwh').textContent=ps;lastps=ps}
  $('h1').textContent='Stage '+stage+'/10';$('h2').textContent='♥'.repeat(Math.max(0,hp));$('h3').textContent=score;
  R.render(S,cam)}
-show('TANGKE','Kaliwang daliri: galaw ng tangke. Kanang daliri: itutok at paputukin ang kanyon. 10 stage, may boss sa dulo.','Simulan',newGame);
+show('TANGKE','Kaliwang daliri: galaw ng tangke. Kanang daliri: itutok at paputukin ang kanyon. 10 stage, may boss sa dulo. Pulutin ang power-ups na nalalaglag ng mga kalaban: tatalbog na bala, dagdag tira, bilis, shield at iba pa.','Simulan',newGame);
 requestAnimationFrame(loop);
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
 </script></body></html>
